@@ -1,0 +1,124 @@
+---
+title: 'Practical Machine Learning - Excercise Prediction'
+author: "Farhan Atiq"
+date: "July 30, 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Data Processing
+
+First the data is downloaded via the URL given above. During the analysis it was noted that several values in the data can be considered "NA", so these are now passed to the function reading in the data to help with clean up and speed the project up.
+
+
+```{r}
+library(caret)
+```
+
+```{r}
+library(randomForest)
+```
+
+```{r}
+library(rpart)
+library(rpart.plot)
+library(e1071)
+```
+
+Getting the data
+
+```{r}
+trainlink <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testlink <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(trainlink), na.strings=c("NA","#DIV/0!",""))
+test_grade<- read.csv(url(testlink), na.strings=c("NA","#DIV/0!",""))
+
+```
+
+
+Removing the first few columns as they have nothing to do with the movement we are predicting.
+
+```{r}
+training <- training[,-c(1:7)]
+test_grade <- test_grade[,-c(1:7)]
+training$classe <- factor(training$classe)
+``` 
+
+Next,check for NA values and remove
+
+```{r}
+sum(is.na(training))
+```
+
+Eliminating many of the columns which are NA, leaving a little over 50 predictor values left to use during modeling.
+
+```{r}
+notna <- sapply(training, function(x)all(!is.na(x)))
+training <- training[,notna]
+test_grade <- test_grade[,notna]
+```
+
+Removing additional variables based on the near zero variance function. Compare the model by creating another training set and test grading set.
+
+```{r}
+removecol <- nearZeroVar(training, saveMetrics=TRUE)
+training2 <- training[,!removecol$nzv== TRUE]
+
+test_grade2 <- test_grade[,!removecol$nzv== TRUE]
+``` 
+
+We then split our training data in to seperate training and testing sets. The testing set that was downloaded above is used to grade the project, but we need a testing set to test our model on before grading.
+
+```{r}
+inTrain = createDataPartition(y=training$classe, p=0.6, list=FALSE)
+trainset = training[inTrain,]
+testset= training[-inTrain,]
+``` 
+
+#Model Building
+
+Prediction model 1: Decision Tree
+
+```{r}
+
+model1 <- rpart(classe ~ ., data=trainset, method="class")
+
+prediction1 <- predict(model1, trainset, type = "class")
+
+# Plot the Decision Tree
+rpart.plot(model1, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+```
+
+Prediction model 2: Random Forest
+
+```{r}
+
+model2 <- randomForest(classe ~. , data=trainset, method="class")
+
+# Predicting:
+prediction2 <- predict(model2, trainset, type = "class")
+
+# Test results on TestTrainingSet data set:
+confusionMatrix(prediction2, trainset$classe)
+
+
+```
+
+
+
+#Graded Predictions
+
+Random Forest algorithm performed better than Decision Trees. Accuracy for Random Forest model was 0.995 (95% CI: (0.993, 0.997)) compared to Decision Tree model with 0.739 (95% CI: (0.727, 0.752)). The Random Forests model is choosen. The expected out-of-sample error is estimated at 0.005, or 0.5%.
+
+Here is the final outcome based on the Prediction Model 2 (Random Forest) applied against the Testing dataset
+
+```{r}
+predictfinal <- predict(model2, testset, type="class")
+predictfinal
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
